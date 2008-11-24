@@ -1,0 +1,500 @@
+From: "Tweedie" <tweet@panda-igs.joyjoy.net>
+To: <midrange-l@weltevree.com>
+Subject: Re: New client
+Date: zaterdag 30 oktober 2004 16:23
+
+> From midrange-l@weltevree.com  Sat Oct 30 20:41:24 2004
+> X-Envelope-From: midrange-l@weltevree.com
+> From: "Wim" <midrange-l@weltevree.com>
+> To: <igs-adm@panda-igs.joyjoy.net>
+> Subject: New client
+>
+> Hello Admin,
+>
+> I want to program a new igs client. Where can i find protocol =
+> information?=20
+>
+> Best regards,
+>
+> Wim Jongman
+
+
+Enclosed are two files, protocol and toclient.h
+
+
+
+protocol:
+
+
+
+/*
+ * Client/Server documentation; IGS External Protocol
+ * 
+ *  Copyright (C) 1992-2004   Panda Net Inc.
+ *  All rights reserved.  License is hereby given for the use of
+ *  this material to develop graphics user interface programs
+ *  ("client programs") for the graphic interpretation of data
+ *  stored on or transmitted by the Internet Go Server.  Any
+ *  other use of this material without the prior written consent
+ *  of PandaNet Inc. is expressly prohibited.
+ */
+
+
+/*
+ * These message types are put at the beginning of every line
+ * of output from the server, with one exception (of course).
+ * Some things to be aware of:
+ *     If you get an unknown message type, you should probably just
+ *     treat it is 'INFO'.  I would guess the same would be true
+ *     if there is an error parsing data.  (It would probably be
+ *     good to tell the user something is wrong as well.)
+ *
+ *     To start looking for client messages look for the version message.
+ *     If should see:  39 ....  If you see:  IGS entry on mm - dd - yyyy,
+ *     you are not in client mode.  But the version string is a way to
+ *     tell if you should be looking for IGS messages, as opposed to 
+ *     terminal messages.
+ *
+ *     The IGS client protocol is designed to be a line-by-line protocol,
+ *     just like telnet is a line-by-line protocol.
+ *
+ *     Any IGS output, which is INFO is subject to change.
+ *
+ *     There are a number of places where info is given as to the type
+ *     of game being played.  For example a professional game is 'P'
+ *     and a tourny game is a '*'.  There will be game types added to
+ *     the list of game types.  Please do not crash if there is an unknown
+ *     type.  (I feel embarrassed I have to tell people....)
+ *
+ *     To identify your client please use the 'id' command.  IGS admins
+ *     come across bugs and bug reports involving clients.  Some users 
+ *     are not aware of the client they are using.  To help debug any
+ *     issues which come up the id command is used to identify the 
+ *     client.  Id takes on argument which is a free form string.
+ *     The client is allowed to put any thing in the string which
+ *     can later be used to identify the version/source/OS of the client
+ *     so any bugs can be fixed as easily as possible.
+ */
+
+typedef enum {
+	UNKNOWN	=  0,
+	AUTOMAT	=  35, 	/* Automatch anouncement*/
+	ADJOURN = 48,	/* Multigame adjourn	*/
+	AUTOASK	=  36, 	/* Automatch accept	*/
+	CAPTURE =  47,	/* Capture messages	*/
+	CHOICES = 38, 	/* game choices		*/
+	CLIVRFY = 41,	/* Client verify message */
+	BEEP	=  2, 	/* \7 telnet 		*/
+	BOARD	=  3,	/* Board being drawn 	*/
+	DOWN	=  4,	/* The server is going down */
+	ERROR	=  5,	/* An error reported	*/
+      	FIL	=  6,	/* File being sent	*/
+	FOLLOWS	= 45, 	/* A follow pl messages.*/
+	GAMES	=  7,	/* Games listing	*/
+	GOERR	= 50,	/* An error in a move 	*/
+      	HELP	=  8,	/* Help file		*/
+	IGS	= 46,	/* multi listing of players. */
+	INFO	=  9,	/* Generic info		*/
+	LAST	= 10,	/* Last command		*/
+      	KIBITZ	= 11,	/* Kibitz strings	*/
+	LOAD	= 12,	/* Loading a game	*/
+	LOOK_M	= 13,	/* Look 		*/
+      	MESSAGE	= 14,	/* Message lising	*/
+      	MOVE	= 15,	/* Move #:(B) A1	*/
+	OBSERVE	= 16,	/* Observe report	*/
+      	PROMPT	=  1,	/* A Prompt (never)	*/
+	REFRESH	= 17,	/* Refresh of a board	*/
+	REGLOG	= 44, 	/* The reregister reg log. */
+	REMOVING = 49, 	/* Multigame stone removal */
+      	SAVED	= 18,	/* Stored command	*/
+      	SAY	= 19,	/* Say string		*/
+	SAY_MG	= 51, 	/* Say multigame	<-- last */
+      	SCORE_M	= 20,	/* Score report		*/
+	SGF_F	= 43,	/* SGF command output   */
+	SGF_M	= 34,	/* SGF file     	*/
+      	SHOUT	= 21,	/* Shout string		*/
+      	SHOW 	= 29,	/* Shout string		*/
+      	STATUS	= 22,	/* Current Game status	*/
+	STORED	= 23,	/* Stored games		*/
+      	TEACH	= 33,	/* teaching game	*/
+      	TELL	= 24,	/* Tell string		*/
+      	DOT	= 40,	/* your . string	*/
+	THIST	= 25,	/* Thist report		*/
+	TIM	= 26,	/* times command	*/
+	TRANS	= 30,	/* Translation info	*/
+	TTT_BOARD= 37, 	/* tic tac toe		*/
+	WHO	= 27,	/* who command		*/
+	UNDO	= 28,	/* Undo report		*/
+	USER	= 42,	/* Long user report	*/
+	VERSION = 39,	/* IGS VERSION: IGS entry on %02d - %02d - %04d\r\n
+				 comes out just as the last piece of info
+				 after verification of the password.
+				 mm - dd - yyyy <== last Message Type value */
+	YELL	= 32,	/* Channel yelling	*/
+} MessageType;
+
+
+/*
+ * The states are used, after the prompt line, to tell what state a player
+ * is in on IGS.  The '1 1' state (meaning PROMPT message while the prompt
+ * in text mode would be 'Password:') the client should not echo characters,
+ * or should change the font to display spaces for characters.  The states
+ * 2, 4 and 4 are no longer used, because of registration.  State 5 is the
+ * 'WAITing' for a game state, from there one can go into the playing,
+ * teaching, or observing states.  The states are not exclusive.
+ * Here is an example:
+ *      1 5
+ *      ob 1
+ *      9 Adding game to observation list.
+ *      15 Game 1 I: death (0 4937 -1) vs Bob (0 4883 -1)
+ *      15  62(B): G4
+ *      1 8
+ * At this point, you can either ask for the moves from a game with the
+ * moves command, or you can get the board state from the status command.
+ * These are the various states:
+ */
+#define LOGGEDON WAITING
+typedef enum {
+	LOGON		= 0,  /* initial state */
+	PASSWORD	= 1,  /* getting password */
+	PASSWD_NEW	= 2,  /* verifiying password: not used, registration */
+	PASSWD_CONFIRM	= 3,  /* ditto */
+	REGISTER	= 4,  /* not used */
+	WAITING		= 5,  /* After login the basic state */
+	PLAYING		= 6,  /* Playing a game */
+	SCORING		= 7,  /* Scoring a game */
+	OBSERVING	= 8,  /* Observing (and playing?) a game */
+	TEACHING	= 9,  /* In teaching mode, can move for W and B */
+	COMPLETE	= 10  /* game complete */
+} State;
+
+/*
+ * GAMES:  Displays all of the games being played, or the game specified.
+ *         The players listed in the games listing, may or may not be real
+ *         players because of the teach command.
+ *[##]  white name [ rk ]      black name [ rk ] (Move size H Komi BY FR) (###)
+ *
+ * MOVES:  comes out in the form: 
+ *             15 Game 1 I: death (4 4629 -1) vs Bob (2 4486 -1)
+ *             15   0(B): Handicap 2
+ *             15   1(W): P3
+ *             15   2(B): D16
+ *                 .
+ *                 .
+ *                 .
+ *
+ *          Or generally:
+ *             15   #(c): <move> <move, move,...,move>
+ *          Where the following move list are dead stones as a result of
+ *          the move.
+ *
+ * STATUS: used to get what is a game current status is.
+ *              status 1
+ *              22 white rank captured time <byo-yomi stones> T|F komi handicap
+ *              22 black rank captured time <byo-yomi stones> T|F komi handicap
+ *              22  0: 2222222222222222222
+ *              22  1: 2221222222122221102
+ *              22  2: 2201212102222122022
+ *              22  3: 2000120101222220222
+ *              22  4: 2111211001222122222
+ *              22  5: 2122210001222200222
+ *              22  6: 2211110211222110222
+ *              22  7: 2200100122222221022
+ *              22  8: 2201001102122121022
+ *              22  9: 2206011006220100022
+ *              22 10: 2222210022102002222
+ *              22 11: 2222202202210212222
+ *              22 12: 2222000002210210022
+ *              22 13: 2200121222120111222
+ *              22 14: 2201112222220102122
+ *              22 15: 2220222221211020122
+ *              22 16: 2202212222100021222
+ *              22 17: 2221222221021201222
+ *              22 18: 2222222222200222222
+ *              1 5
+ *         NOTE: The board for a status is flipped along the diagonal
+ *               with respect to the rest of IGS/SGF output.
+ *               If the line for the player is 'T', then the player is in
+ *               byo-yomi.  Otherwise, the byo-yomi stones can be ignored.
+ *         Should there be a mention of the rule set for the game?
+ *
+ * INFO: String to be passed to the user, with the '9 ' stripped out.
+ *
+ * ERROR: String to be passed to the user, with the '5 ' stripped out.
+ *        If you can handle errors in a rational way, then the difference
+ *        between INFO and ERROR are useful.
+ *
+ * DOT: Has the name of the player which is the players '.'
+ *
+ * FIL: Used to send a file.  The format is differnt then any other command:
+ *           help match
+ *           6 <type>
+ *           text of help match
+ *           6 <type>
+ *           1 5
+ *      In the above example, type would be HELP.  Although type can be
+ *      nearly any line type, it currently is only MESSAGE, HELP, and INFO.
+ *
+ * FOLLOW: Message about you are now following a player.
+ *         Maybe the observe notification.
+ *
+ * WHEN MAKING MOVES, or any other command which talks about a game:
+ *   Make sure the game number is in the command.  For a move it would
+ *   look like:
+ *
+ *       D4 10 2
+ *
+ *   This means make move D4 in game number 10 with 2 seconds of user
+ * 	thinking time.
+ *
+ *      addtime 10 2
+ *
+ *   means add 2 minutes to game number 10.
+ *   Always include the game number in commands.  The game number is always
+ *   just after the command string and before any arguments.
+ */
+
+
+
+
+toclient.h
+
+
+/*
+ * Client/Server documentation; IGS External Protocol
+ * 
+ *  Copyright (C) 1992-2004   Panda Net Inc.
+ *  All rights reserved.  License is hereby given for the use of
+ *  this material to develop graphics user interface programs
+ *  ("client programs") for the graphic interpretation of data
+ *  stored on or transmitted by the Internet Go Server.  Any
+ *  other use of this material without the prior written consent
+ *  of PandaNet Inc. is expressly prohibited.
+ */
+
+
+#if 0
+$Id: 
+#endif /* LINT */
+
+
+#ifndef SHARED_H
+#define SHARED_H
+
+#ifdef USE_STDERR /* Dec alpha apperently has a USE_STDERR defined */
+#undef USE_STDERR
+#endif
+
+#ifndef BIT
+#define BIT(n) (1L << (n))
+#endif /* BIT */
+
+/*
+ * These message types are put at the beginning of every line
+ * of output from the server, with one exception (of course).
+ * Some things to be aware of:
+ *     If you get an unknown message type, you should probably just
+ *     treat it is 'INFO'.  I would guess the same would be true
+ *     if there is an error parsing date.  (It would probably be
+ *     good to tell the user something is wrong as well.)
+ *
+ *     To start looking for client messages look for the version message.
+ *     If should see:  39 ....  If you see:  IGS entry on mm - dd - yyyy,
+ *     you are not in client mode.  But the version string is a way to
+ *     tell if you should be looking for IGS messages, as opposed to 
+ *     terminal messages.
+ *
+ *     The IGS client protocol is designed to be a line-by-line protocol,
+ *     just like telnet is a line-by-line protocol.
+ *
+ *     Any IGS output, which is INFO is subject to change.
+ *
+ *     There are a number of places where info is given as to the type
+ *     of game being played.  For example a professional game is 'P'
+ *     and a tourny game is a '*'.  There will be game types added to
+ *     the list of game types.  Please do not crash if there is an unknown
+ *     type.  (I feel embarrassed I have to tell people....)
+ */
+
+typedef enum {
+	UNKNOWN	=  0,
+	AUTOMAT	=  35, 	/* Automatch anouncement*/
+	ADJOURN = 48,	/* Multigame adjourn	*/
+	AUTOASK	=  36, 	/* Automatch accept	*/
+	BEEP	=  2, 	/* \7 telnet 		*/
+	BOARD	=  3,	/* Board being drawn 	*/
+	CAPTURE =  47,	/* Capture messages	*/
+	CHOICES = 38, 	/* game choices		*/
+	CLIVRFY = 41,	/* Client verify message */
+	DEC_ADJ	= 53,	/* Adjournment decline 	<-- last */
+	DOWN	=  4,	/* The server is going down */
+	ERROR	=  5,	/* An error reported	*/
+      	FIL	=  6,	/* File being sent	*/
+	FOLLOWS	= 45, 	/* A follow pl messages.*/
+	GAMES	=  7,	/* Games listing	*/
+	GMINFO	= 52,	/* game info 		*/
+	GOERR	= 50,	/* An error in a move 	*/
+      	HELP	=  8,	/* Help file		*/
+	IGS	= 46,	/* multi listing of players. */
+	INFO	=  9,	/* Generic info		*/
+	LAST	= 10,	/* Last command		*/
+      	KIBITZ	= 11,	/* Kibitz strings	*/
+	LOAD	= 12,	/* Loading a game	*/
+	LOOK_M	= 13,	/* Look 		*/
+      	MESSAGE	= 14,	/* Message lising	*/
+      	MOVE	= 15,	/* Move #:(B) A1	*/
+	OBSERVE	= 16,	/* Observe report	*/
+      	PROMPT	=  1,	/* A Prompt (never)	*/
+	REFRESH	= 17,	/* Refresh of a board	*/
+	REGLOG	= 44, 	/* The reregister reg log. */
+	REMOVING = 49, 	/* Multigame stone removal */
+      	SAVED	= 18,	/* Stored command	*/
+      	SAY	= 19,	/* Say string		*/
+	SAY_MG	= 51, 	/* Say multigame	*/
+      	SCORE_M	= 20,	/* Score report		*/
+	SGF_F	= 43,	/* SGF command output   */
+	SGF_M	= 34,	/* SGF file     	*/
+      	SHOUT	= 21,	/* Shout string		*/
+      	SHOW 	= 29,	/* Shout string		*/
+      	STATUS	= 22,	/* Current Game status	*/
+	STORED	= 23,	/* Stored games		*/
+      	TEACH	= 33,	/* teaching game	*/
+      	TELL	= 24,	/* Tell string		*/
+      	DOT	= 40,	/* your . string	*/
+	THIST	= 25,	/* Thist report		*/
+	TIM	= 26,	/* times command	*/
+	TRANS	= 30,	/* Translation info	*/
+	TTT_BOARD= 37, 	/* tic tac toe		*/
+	WHO	= 27,	/* who command		*/
+	UNDO	= 28,	/* Undo report		*/
+	USER	= 42,	/* Long user report	*/
+	VERSION = 39,	/* IGS VERSION: IGS entry on %02d - %02d - %04d\r\n
+				 comes out just as the last piece of info
+				 after verification of the password.
+				 mm - dd - yyyy <== last Message Type value */
+	YELL	= 32,	/* Channel yelling	*/
+} MessageType;
+
+
+/*
+ * The states are used, after the prompt line, to tell what state a player
+ * is in on IGS.  The '1 1' state (meaning PROMPT message while the prompt
+ * in text mode would be 'Password:') the client should not echo characters,
+ * or should change the font to display spaces for characters.  The states
+ * 2, 4 and 4 are no longer used, because of registration.  State 5 is the
+ * 'WAITing' for a game state, from there one can go into the playing,
+ * teaching, or observing states.  The states are not exclusive.
+ * Here is an example:
+ *      1 5
+ *      ob 1
+ *      9 Adding game to observation list.
+ *      15 Game 1 I: death (0 4937 -1) vs Bob (0 4883 -1)
+ *      15  62(B): G4
+ *      1 8
+ * At this point, you can either ask for the moves from a game with the
+ * moves command, or you can get the board state from the status command.
+ * These are the various states:
+ */
+#define LOGGEDON WAITING
+typedef enum {
+	LOGON		= 0,  /* initial state */
+	PASSWORD	= 1,  /* getting password */
+	PASSWD_NEW	= 2,  /* verifiying password: not used, registration */
+	PASSWD_CONFIRM	= 3,  /* ditto */
+	REGISTER	= 4,  /* not used */
+	WAITING		= 5,  /* After login the basic state */
+	PLAYING		= 6,  /* Playing a game */
+	SCORING		= 7,  /* Scoring a game */
+	OBSERVING	= 8,  /* Observing (and playing?) a game */
+	TEACHING	= 9,  /* In teaching mode, can move for W and B */
+	COMPLETE	= 10  /* game complete */
+} State;
+
+/*
+ * GAMES:  Displays all of the games being played, or the game specified.
+ *         The players listed in the games listing, may or may not be real
+ *         players because of the teach command.
+ *[##]  white name [ rk ]      black name [ rk ] (Move size H Komi BY FR) (###)
+ *
+ * MOVES:  comes out in the form: 
+ *             15 Game 1 I: death (4 4629 -1) vs Bob (2 4486 -1)
+ *             15   0(B): Handicap 2
+ *             15   1(W): P3
+ *             15   2(B): D16
+ *                 .
+ *                 .
+ *                 .
+ *
+ *          Or generally:
+ *             15   #(c): <move> <move, move,...,move>
+ *          Where the following move list are dead stones as a result of
+ *          the move.
+ *
+ * STATUS: used to get what is a game current status is.
+ *              status 1
+ *              22 white rank captured time <byo-yomi stones> T|F komi handicap
+ *              22 black rank captured time <byo-yomi stones> T|F komi handicap
+ *              22  0: 2222222222222222222
+ *              22  1: 2221222222122221102
+ *              22  2: 2201212102222122022
+ *              22  3: 2000120101222220222
+ *              22  4: 2111211001222122222
+ *              22  5: 2122210001222200222
+ *              22  6: 2211110211222110222
+ *              22  7: 2200100122222221022
+ *              22  8: 2201001102122121022
+ *              22  9: 2206011006220100022
+ *              22 10: 2222210022102002222
+ *              22 11: 2222202202210212222
+ *              22 12: 2222000002210210022
+ *              22 13: 2200121222120111222
+ *              22 14: 2201112222220102122
+ *              22 15: 2220222221211020122
+ *              22 16: 2202212222100021222
+ *              22 17: 2221222221021201222
+ *              22 18: 2222222222200222222
+ *              1 5
+ *         NOTE: The board for a status is flipped along the diagonal
+ *               with respect to the rest of IGS/SGF output.
+ *               If the line for the player is 'T', then the player is in
+ *               byo-yomi.  Otherwise, the byo-yomi stones can be ignored.
+ *         Should there be a mention of the rule set for the game?
+ *
+ * INFO: String to be passed to the user, with the '9 ' stripped out.
+ *
+ * ERROR: String to be passed to the user, with the '5 ' stripped out.
+ *        If you can handle errors in a rational way, then the difference
+ *        between INFO and ERROR are useful.
+ *
+ * DOT: Has the name of the player which is the players '.'
+ *
+ * FIL: Used to send a file.  The format is differnt then any other command:
+ *           help match
+ *           <type> File
+ *           text of help match
+ *           <type> File
+ *           1 5
+ *      In the above example, type would be HELP.  Although type can be
+ *      nearly any line type, it currently is only MESSAGE, HELP, and INFO.
+ *
+ * FOLLOW: Message about you are now following a player.
+ *         Maybe the observe notification.
+ *
+ * WHEN MAKING MOVES, or any other command which talks about a game:
+ *   Make sure the game number is in the command.  For a move it would
+ *   look like:
+ *
+ *       D4 10 2
+ *
+ *   This means make move D4 in game number 10 with 2 seconds of user
+ * 	thinking time.
+ *
+ *      addtime 10 2
+ *
+ *   means add 2 minutes to game number 10.
+ *   Always include the game number in commands.  The game number is always
+ *   just after the command string and before any arguments.
+ */
+
+
+#endif /* SHARED_H */ 

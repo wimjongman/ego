@@ -1,0 +1,930 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project default="no-build-macros-default">
+	<!-- $Id: buildMacros.template,v 1.10 2007/01/08 05:42:08 mark_russell Exp $ -->
+	<target name="no-build-macros-default">
+		<fail>This file does not contain a default target</fail>
+	</target>
+
+	<!-- ================================================= 
+		Check that the build script is executing in an Eclpse environment          
+	-->
+	<macrodef name="checkEclipseRunning">
+		<sequential>
+			<fail unless="eclipse.running">*
+***********************************************************************
+This build script must be executed inside an Eclipse environment.
+
+If you are executing from the Eclipse UI, 
+be sure to switch to the "JRE" tab of the Ant Script Launch Configuration
+and select the "Run in the same JRE as the workspace" radio button
+
+If you are executing Ant headless,
+then execute inside headless Eclipse using a command line something like this:
+
+java -cp /opt/eclipses/eclipse_311/startup.jar org.eclipse.core.launcher.Main 
+  -clean -noupdate -configuration ../configuration 
+  -application org.eclipse.ant.core.antRunner -data .. 
+  -verbose -file build-product.xml
+
+***********************************************************************
+        	</fail>
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Check for the specified Eclipse classpath variable          
+	-->
+	<macrodef name="checkEclipseClasspathVariable">
+		<attribute name="varName" />
+		<sequential>
+			<eclipsetools.getClasspathVariable variable="@{varName}"
+			                                   property="classpath.var.@{varName}"
+			                                   failonnotfound="true" />
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Read the product level build properties from          
+	-->
+	<macrodef name="read_product_properties">
+		<attribute name="user.name" default="${user.name}" />
+		<attribute name="user.property.file"
+		           default="build-settings/@{user.name}.properties" />
+		<sequential>
+			<tstamp>
+				<format property="build.num" pattern="yyyyMMddHHmmss" />
+			</tstamp>
+
+			<!-- Read properties from user specific and product specific files -->
+			<fail>
+				<condition>
+					<not>
+						<available file="@{user.property.file}" />
+					</not>
+				</condition>*
+***********************************************************************
+Cannot find file: @{user.property.file}
+
+Please create a file called
+    @{user.property.file}
+its contents should look like this
+build.root    = /Build/${product.name}
+
+***********************************************************************
+			</fail>
+			<property file="build-settings/product.properties" />
+			<property file="@{user.property.file}" />
+
+			<!-- Verify required properties are defined -->
+			<fail unless="build.root" />
+			<fail unless="product.name" />
+			<fail unless="product.version" />
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Initialize the product properties          
+	-->
+	<macrodef name="init_product_properties">
+		<sequential>
+
+			<!-- Properties derived from ${build.root} -->
+			<property name="build.out" location="C:\Users\jongw\build\RCP\install-image" /> 
+
+			<property name="build.temp.name" value="temp" />
+			<property name="build.temp"
+			          location="${build.root}/${build.temp.name}" />
+			<property name="log.dir" location="${build.root}/logs" />
+
+			<!-- Script generation initialization -->
+			<property name="eclipsetools.macros.path"
+			          value="../com.weltevree.ego/build-macros.xml" />
+
+			<!-- Delete the temporary directory -->
+			<mkdir dir="${build.root}" />
+			<delete dir="${build.temp}" />
+			<mkdir dir="${log.dir}" />
+
+			
+			<!-- Write the head file -->
+			<basename file="${build.out}" property="head.dir.name"/>
+			<echo file="${build.out}/../head.properties">head=${head.dir.name}</echo>
+
+			<!-- Compiler settings -->
+			<property name="build.compiler"
+			          value="org.eclipse.jdt.core.JDTCompilerAdapter" />
+			<property name="compiler.debug" value="true" />
+
+			<echo>build.root = ${build.root}</echo>
+			<echo>build.temp = ${build.temp}</echo>
+			<echo>build.out = ${build.out}</echo>
+
+		</sequential>
+	</macrodef>
+
+
+	<!-- ================================================= 
+		Macro for checking that a file exists.
+	-->
+	<macrodef name="checkfile">
+		<attribute name="file" />
+		<attribute name="message" default="Cannot find file: @{file}" />
+		<sequential>
+
+			<!-- Assert that the file exists -->
+			<fail message="@{message}">
+				<condition>
+					<not>
+						<available file="@{file}" />
+					</not>
+				</condition>
+			</fail>
+
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Macro for checking that type has a valid value of plugins or features.
+	-->
+	<macrodef name="checkType">
+		<attribute name="type" />
+		<sequential>
+
+			<fail message="invalid value for type: @{type}">
+				<condition>
+					<not>
+						<or>
+							<equals arg1="@{type}" arg2="plugins" />
+							<equals arg1="@{type}" arg2="features" />
+						</or>
+					</not>
+				</condition>
+			</fail>
+
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Macro for initializing common properties.
+		
+		=== Properties defined:
+		
+		Project-Name - the project name
+	-->
+	<macrodef name="init_properties">
+		<sequential>
+			<basename file="." property="Project-Name" />
+			<echo>--------------------- Building ${Project-Name}</echo>
+
+			<fail unless="build.temp" />
+
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Macro for loading a plug-in manifest file
+		in the current project as properties.
+		
+		=== Optional Parameters:
+		
+		file - the manifest.mf file to be read
+			(defaults to "meta-inf/manifest.mf")
+		temp - a scratch directory used when reading the manifest
+			(defaults to "${build.temp}/common/${Project-Name}")
+		
+		=== Properties defined:
+		
+		Project-Label	   - the bundle's human readable name
+		Project-Id      - the bundle's unique id
+			(same as Bundle-SymbolicName)
+		Project-Version - the plug-in's version
+		
+		== side effect
+		this macro will alos read a build.xml if one exists
+	-->
+	<macrodef name="read_manifest">
+		<attribute name="file" default="META-INF/MANIFEST.MF" />
+		<attribute name="temp" default="${build.temp}/common/${Project-Name}" />
+		<attribute name="plugin" default="plugin.xml" />
+		<sequential>
+			<checkfile file="@{file}" />
+
+			<!-- Copy and rewrite the manifest.mf
+			  so that it can be loaded as properties -->
+			<mkdir dir="@{temp}" />
+			<copy file="@{file}"
+			      tofile="@{temp}/manifest.mf"
+			      overwrite="true" />
+			<replace file="@{temp}/manifest.mf">
+				<replacefilter token=":=" value="=" />
+				<replacefilter token=":" value="=" />
+				<replacetoken>;</replacetoken>
+				<replacevalue>
+				</replacevalue>
+			</replace>
+
+			<!-- Load properties from the rewritten manifest -->
+			<property file="@{temp}/manifest.mf" />
+
+			<!-- Rename properties for clarity -->
+			<property name="Project-Label" value="${Bundle-Name}" />
+			<property name="Project-Id" value="${Bundle-SymbolicName}" />
+			<property name="Project-Version" value="${Bundle-Version}" />
+
+			<!-- Load properties from the plugin.xml file -->
+			<xmlproperty file="@{plugin}" />
+
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Macro for loading a plugin.xml
+		in the current project as properties.
+			
+		=== Optional Parameters:
+		
+		file - the plugin.xml file to be read
+			(defaults to "plugin.xml")
+		
+		=== Properties defined:
+		
+		Project-Label	   - the plug-in's human readable name
+		Project-Id      - the plug-in's unique id
+		Project-Version - the plug-in's version
+	-->
+	<macrodef name="read_plugin">
+		<attribute name="file" default="plugin.xml" />
+		<sequential>
+			<checkfile file="@{file}" />
+
+			<!-- Load properties from the rewritten manifest -->
+			<xmlproperty file="@{file}" />
+
+			<!-- Rename some properties for clarity -->
+			<property name="Project-Label" value="${plugin(label)}" />
+			<property name="Project-Id" value="${plugin(id)}" />
+			<property name="Project-Version" value="${plugin(version)}" />
+
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Macro for loading a fragment.xml
+		in the current project as properties.
+			
+		=== Optional Parameters:
+		
+		file - the fragment.xml file to be read
+			(defaults to "fragment.xml")
+		
+		=== Properties defined:
+		
+		Project-Label    - the plug-in's human readable name
+		Project-Id	   - the plug-in's unique id
+		Project-Version - the plug-in's version
+	-->
+	<macrodef name="read_fragment">
+		<attribute name="file" default="fragment.xml" />
+		<sequential>
+			<checkfile file="@{file}" />
+
+			<!-- Load properties from the fragment file -->
+			<xmlproperty file="@{file}" />
+
+			<!-- Rename some properties for clarity -->
+			<property name="Project-Label" value="${fragment(label)}" />
+			<property name="Project-Id" value="${fragment(id)}" />
+			<property name="Project-Version" value="${fragment(version)}" />
+
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Macro for loading a feature.xml
+		in the current project as properties.
+			
+		=== Optional Parameters:
+		
+		file - the feature.xml file to be read
+			(defaults to "feature.xml")
+		
+		=== Properties defined:
+		
+		Project-Label	   - the feature's human readable name
+		Project-Id      - the feature's unique id
+		Project-Version - the feature's version
+	-->
+	<macrodef name="read_feature">
+		<attribute name="file" default="feature.xml" />
+		<sequential>
+			<checkfile file="@{file}" />
+
+			<!-- Load properties from the feature file -->
+			<xmlproperty file="@{file}" />
+
+			<!-- Rename some properties for clarity -->
+			<property name="Project-Label" value="${feature(label)}" />
+			<property name="Project-Id" value="${feature(id)}" />
+			<property name="Project-Version" value="${feature(version)}" />
+
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Macro for reading build information from build.properties
+		in the current project as properties.
+			
+		=== Optional Parameters:
+		
+		file - the build.properties file to be read
+			(defaults to "build.properties")
+		
+		=== Properties defined in a typical Eclipse build.properties:
+		
+		Project-CommonFiles - the files to be included in the plug-in
+			(same as bin.includes)
+		source.<jar-file-name> - source directory(ies) for the library(ies)
+		output.<jar-file-name> - binary directory(ies) for the library(ies)
+	-->
+	<macrodef name="read_build">
+		<attribute name="file" default="build.properties" />
+		<sequential>
+			<checkfile file="@{file}" />
+
+			<!-- Read the build.properties -->
+			<property file="@{file}" />
+
+			<!-- Rename some properties for clarity -->
+			<property name="Project-CommonFiles" value="${bin.includes}" />
+
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Macro for compiling files.
+		Content is pulled from
+			@{source}
+		and compiled to
+			@{destDir}
+		which defaults to
+			${build.temp}/@{eclipseTarget}/${Project-Name}/@{dest}
+			
+		=== Optional Parameters:
+		
+		source - the source to be compiled and jar'd
+			(defaults to "src")
+		dest - the relative directory to which files are compiled 
+			(defaults to "bin")
+
+		eclipseTarget - the version of Eclipse this library is for
+			(e.g. "3.1", "3.0" or "common")
+			(defaults to ${eclipseTarget})
+		debug - whether debug information should be generated in class files
+			(defaults to ${compiler.debug})
+		buildmap - the buildmap file used to map classpath changes 
+			between different versions of Eclipse
+			(defaults to ${build.map})
+		tempSrcDir - the temporary source directory used during preprocessing
+			(defaults to ${build.temp}/@{eclipseTarget}/${Project-Name}/src)
+		destDir - the directory to which files are compiled 
+			(defaults to ${build.temp}/@{eclipseTarget}/${Project-Name}/@{dest})
+		
+		=== Required Properties:
+		
+		build.temp  - the temporary directory used when building this product
+	-->
+	<macrodef name="compile_lib">
+		<attribute name="eclipseTarget" default="${eclipseTarget}" />
+		<attribute name="source" default="src" />
+		<attribute name="dest" default="bin" />
+		<attribute name="destDir"
+		           default="${build.temp}/@{eclipseTarget}/${Project-Name}/@{dest}" />
+		<attribute name="debug" default="${compiler.debug}" />
+		<attribute name="buildmap" default="${build.map}" />
+		<attribute name="tempSrc" default="src-@{dest}" />
+		<attribute name="tempSrcDir"
+		           default="${build.temp}/@{eclipseTarget}/${Project-Name}/@{tempSrc}" />
+		<attribute name="oldConfig" default="" />
+
+		<!-- TODO: [author=Dan] Problem building multiple libraries in single bundle
+			because the 2nd library may need the 1st library on the classpath.
+			Workaround this by assuming 1st library is compiled to "bin"
+			and appending this to the classpath -->
+
+		<attribute name="classpathExtra"
+		           default="${build.temp}/@{eclipseTarget}/${Project-Name}/bin;@{destDir}" />
+
+		<sequential>
+			<echo message="entering compile-lib" level="verbose"/>
+			<echo message="compile-lib: eclipseTarget = @{eclipseTarget}" level="debug"/>
+			<echo message="compile-lib: source = @{source}" level="debug"/>
+			<echo message="compile-lib: destDir = @{destDir}" level="debug"/>
+			<echo message="compile-lib: debug = @{debug}" level="debug"/>
+			<echo message="compile-lib: buildmap = @{buildmap}" level="debug"/>
+			<echo message="compile-lib: tempSrc = @{tempSrc}" level="debug"/>
+			<echo message="compile-lib: tempSrcDir = @{tempSrcDir}" level="debug"/>
+			<echo message="compile-lib: oldConfig = @{oldConfig}" level="debug"/>
+			<echo message="compile-lib: classpathExtra = @{classpathExtra}" level="debug"/>
+
+			<!-- Assert valid attributes and properties -->
+			<fail unless="build.temp" />
+
+			<echo message="compile-lib: running getClasspath" level="debug"/>
+			<eclipsetools.getClasspath binroot="${build.temp}/@{eclipseTarget}"
+			                           verbose="true"
+			                           property="classpath_@{eclipseTarget}" />
+
+			<mkdir dir="@{destDir}" />
+
+			<echo message="compile-lib: running compiler" level="debug"/>
+			<javac srcdir="@{source}"
+			       destdir="@{destDir}"
+			       classpath="@{classpathExtra};${classpath_@{eclipseTarget}}"
+			       debug="@{debug}" 
+			       source="1.3"
+			       target="1.2"/>
+
+			<echo message="compile-lib: running copyDirectories" level="debug"/>
+			<eclipsetools.copyDirectories dirs="@{source}"
+			                              todir="@{destDir}"
+			                              excludes="**/*.class,**/*.java,**/Thumbs.db" />
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Macro for assembling the plug-in's library.
+		Content is pulled from
+			@{sourceDir}
+		and placed into 
+			@{destDir}
+		which defaults to
+			${build.temp}/@{eclipseTarget}/${Project-Name}/out/@{dest}
+			
+		=== Required Parameters:
+		
+		dest - name of the libaray jar file to be assembled 
+			(e.g. "favorites.jar" or "favoritessrc.zip")
+			
+		=== Optional Parameters:
+		
+		source - the relative path to the directory containing content (class files)
+			(defaults to "bin")
+			
+		eclipseTarget - the version of Eclipse this library is for
+			(e.g. "3.1", "3.0" or "common")
+			(defaults to ${eclipseTarget})
+		sourceDir - the absolute path to the directory containing content (class files)
+			(defaults to "${build.temp}/@{eclipseTarget}/${Project-Name}/@{source}")
+		destDir - the directory in which the library is created
+			(defaults to ${build.temp}/@{eclipseTarget}/${Project-Name}/out)
+		
+		=== Required Properties:
+		
+		build.temp  - the temporary directory used when building this product
+	-->
+	<macrodef name="jar_lib">
+		<attribute name="source" default="bin" />
+		<attribute name="dest" />
+		<attribute name="eclipseTarget" default="${eclipseTarget}" />
+		<attribute name="sourceDir"
+		           default="${build.temp}/@{eclipseTarget}/${Project-Name}/@{source}" />
+		<attribute name="destDir"
+		           default="${build.temp}/@{eclipseTarget}/${Project-Name}/out" />
+		<sequential>
+
+			<!-- Assert valid attributes and properties -->
+			<fail unless="build.temp" />
+
+			<!-- Create the destination -->
+			<mkdir dir="@{destDir}" />
+
+			<!-- Assemble the binary file -->
+			<zip destfile="@{destDir}/@{dest}">
+				<fileset dir="@{sourceDir}" />
+			</zip>
+
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Macro for assembling the plug-in's library.
+		Content is pulled from
+			@{sourceDir}
+		and placed into 
+			@{destDir}
+		which defaults to
+			${build.temp}/@{eclipseTarget}/${Project-Name}/out/@{dest}
+			
+		=== Required Parameters:
+		
+		dest - name of the libaray jar file to be assembled 
+			(e.g. "favorites.jar" or "favoritessrc.zip")
+			
+		=== Optional Parameters:
+		
+		source - the relative path to the directory containing content (class files)
+			(defaults to "bin")
+			
+		eclipseTarget - the version of Eclipse this library is for
+			(e.g. "3.1", "3.0" or "common")
+			(defaults to ${eclipseTarget})
+		sourceDir - the absolute path to the directory containing content (class files)
+			(defaults to "${build.temp}/@{eclipseTarget}/${Project-Name}/@{source}")
+		destDir - the directory in which the library is created
+			(defaults to ${build.temp}/@{eclipseTarget}/${Project-Name}/out)
+		
+		=== Required Properties:
+		
+		build.temp  - the temporary directory used when building this product
+	-->
+	<macrodef name="src_lib">
+		<attribute name="source" default="bin" />
+		<attribute name="eclipseTarget" default="${eclipseTarget}" />
+		<attribute name="sourceDir"
+		           default="${build.temp}/@{eclipseTarget}/${Project-Name}/@{source}" />
+		<attribute name="destDir"
+		           default="${build.temp}/@{eclipseTarget}/${Project-Name}/out" />
+		<sequential>
+			
+			<!-- Assert valid attributes and properties -->
+			<fail unless="build.temp" />
+
+			<!-- Create the destination -->
+			<mkdir dir="@{destDir}" />
+
+			<!-- copy the binary file -->
+			<copy todir="@{destDir}">
+				<fileset dir="@{sourceDir}" />
+			</copy>
+
+		</sequential>
+	</macrodef>
+	<!-- ================================================= 
+		Macro for assembling the plug-in's source file.
+		Content is pulled from
+			a fileset subelement
+		and placed into 
+			${build.temp}/@{eclipseTarget}/${Project-Name}/out/@{lib}
+			
+		=== Required Parameters:
+		
+		dest - name of the libaray jar file to be assembled 
+			(e.g. "favorites.jar" or "favoritessrc.zip")
+			
+		=== Optional Parameters:
+		
+		eclipseTarget - the version of Eclipse this library is for
+			(e.g. "3.1", "3.0" or "common")
+			(defaults to ${eclipseTarget})
+		destDir - the directory in which the library is created
+			(defaults to ${build.temp}/@{eclipseTarget}/${Project-Name}/out)
+		
+		=== Required Properties:
+		
+		build.temp  - the temporary directory used when building this product
+	-->
+	<macrodef name="zip_source">
+		<attribute name="source" default="" />
+		<attribute name="dest" />
+		<attribute name="destDir"
+		           default="${build.temp}/common/${Project-Name}/out" />
+		<sequential>
+
+			<!-- Assert valid attributes and properties -->
+			<fail unless="build.temp" />
+
+			<!-- Create the destination -->
+			<mkdir dir="@{destDir}" />
+
+			<!-- Assemble the binary file -->
+			<zip destfile="@{destDir}/@{dest}">
+				<fileset dir="@{source}" />
+			</zip>
+
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Macro for assembling the plug-in's jar
+		Content is pulled from
+			@{commonFileList}
+			@{commonFileDir}
+			@{targetBinDir}
+			@{targetFileDir}
+			a fileset subelement (optional)
+		and placed into 
+			@{destDir}/@{id}_@{version}.jar
+		
+		=== Required Parameters:
+		
+		eclipseTarget - the version of Eclipse this bundle targets
+			(e.g. "3.1" or "3.0")
+		type - the parent directory
+			(typically "plugins" or "features")
+
+		=== Optional Parameters:
+		
+		id - the plug-in's unique id
+			(defaults to ${Project-Id})
+		version - the plug-in's version
+			(defaults to ${Project-Version})
+		commonFileList - a comma separated list of common files in the current directory
+			(defaults to ${Project-CommonFiles})
+		commonFileDir - a directory from which files are pulled
+			(defaults to ${build.temp}/common/${Project-Name}/out)
+		targetBinDir - a directory from which files are pulled
+			(defaults to ${build.temp}/@{eclipseTarget}/${Project-Name}/bin)
+		targetFileDir - a directory from which files are pulled
+			(defaults to ${build.temp}/@{eclipseTarget}/${Project-Name}/out)
+		destDir - the destination directory in which the jar is created
+			(defaults to ${build.temp}/@{eclipseTarget}/out/@{type})
+				  
+		=== Optional Child Elements:
+		
+		content - a fileset of file to be included
+			(e.g. ${bin.includes})
+		
+		=== Required properties:
+		
+		build.temp  - the temporary directory used when building this product
+		Project-Name - the project name
+	-->
+	<macrodef name="jar_bundle">
+		<attribute name="eclipseTarget" />
+		<attribute name="type" />
+		<attribute name="id" default="${Project-Id}" />
+		<attribute name="version" default="${Project-Version}" />
+		<attribute name="commonFileList" default="${Project-CommonFiles}" />
+		<attribute name="commonFileDir"
+		           default="${build.temp}/common/${Project-Name}/out" />
+		<attribute name="targetBinDir"
+		           default="${build.temp}/@{eclipseTarget}/${Project-Name}/bin" />
+		<attribute name="targetFileDir"
+		           default="${build.temp}/@{eclipseTarget}/${Project-Name}/out" />
+		<attribute name="destDir"
+		           default="${build.temp}/@{eclipseTarget}/out/@{type}" />
+		<element name="content" implicit="true" optional="true" />
+		<sequential>
+
+			<!-- Assert valid attributes and properties -->
+			<fail unless="build.temp" />
+			<checkType type="@{type}" />
+
+			<!-- Assemble plug-in jar -->
+
+			<mkdir dir="@{destDir}" />
+
+			<mkdir dir="@{commonFileDir}" />
+			<mkdir dir="@{targetBinDir}" />
+			<mkdir dir="@{targetFileDir}" />
+
+			<zip destfile="@{destDir}/@{id}_@{version}.jar">
+				<zipfileset dir="." includes="@{commonFileList}" />
+				<zipfileset dir="@{commonFileDir}" />
+				<zipfileset dir="@{targetBinDir}" />
+				<zipfileset dir="@{targetFileDir}" />
+				<content />
+			</zip>
+
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Macro for assembling the plug-in's directory
+		Content is pulled from
+			@{targetFileDir}
+			a fileset subelement (optional)
+		and placed into
+			@{destDir}
+		which defaults to 
+			${build.temp}/@{eclipseTarget}/out/@{type}/@{id}_@{version}
+
+		=== Required Parameters:
+		
+		eclipseTarget - the version of Eclipse this bundle targets
+			(e.g. "3.1" or "3.0")
+		type - the parent directory
+			(typically "plugins" or "features")
+		
+		=== Optional Parameters:
+		
+		id - the plug-in's unique id
+			(defaults to ${Project-Id})
+		version - the plug-in's version
+			(defaults to ${Project-Version})
+		targetFileDir - a directory from which files are pulled
+			(defaults to ${build.temp}/@{eclipseTarget}/${Project-Name}/out)
+		dest - the bundle directory name
+			(defaults to @{id}_@{version})
+		destDir - the destination directory in which the plug-in directory is created
+			(defaults to ${build.temp}/@{eclipseTarget}/out/@{type}/@{dest})
+				  
+		=== Optional Child Elements:
+		
+		content - a fileset of file to be included
+			(e.g. ${bin.includes})
+		
+		=== Required properties:
+		
+		build.temp  - the temporary directory used when building this product
+		Project-Name - the project name
+	-->
+	<macrodef name="dir_bundle">
+		<attribute name="eclipseTarget" />
+		<attribute name="type" />
+		<attribute name="id" default="${Project-Id}" />
+		<attribute name="version" default="${Project-Version}" />
+		<attribute name="targetFileDir"
+		           default="${build.temp}/@{eclipseTarget}/${Project-Name}/out" />
+		<attribute name="dest" default="@{id}_@{version}" />
+		<attribute name="destDir"
+		           default="${build.temp}/@{eclipseTarget}/out/@{type}/@{dest}" />
+		<element name="content" implicit="true" optional="true" />
+		<sequential>
+
+			<!-- Assert valid attributes and properties -->
+			<fail unless="build.temp" />
+			<checkType type="@{type}" />
+
+			<!-- Assemble specific elements -->
+
+			<mkdir dir="@{destDir}" />
+			<mkdir dir="@{targetFileDir}" />
+
+			<copy todir="@{destDir}">
+				<fileset dir="@{targetFileDir}" />
+				<content />
+			</copy>
+
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Build the specified bundle by calling the build-bundle.xml Ant script
+		in the specified plug-in project
+		
+		=== Required Properties:
+		
+		build.target - the build being performed
+			Typically this is defined once in the build-product.xml file
+			(e.g. "build_all", "build_3.1" or "build_3.0")
+	-->
+	<macrodef name="build_bundle">
+		<attribute name="project" />
+		<sequential>
+			<echo message="*------------ build_bundle" level="verbose"/>
+			<fail unless="build.target">
+				Must define build.target (e.g. "build_all", "build_3.1" or "build_3.0")
+				Typically this is defined once in the build-product.xml file
+			</fail>
+
+			<ant antfile="build-bundle.xml"
+			     target="${build.target}"
+			     dir="../@{project}" />
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Build each plug-in, fragment and feature for this product
+		by calling the build-bundle.xml in each project
+		
+		=== Required Parameters:
+		
+		eclipseTarget - the version of Eclipse this feature targets
+			(e.g. "3.1" or "3.0")
+		
+		=== Properties defined:
+		
+		build.target - the build being performed
+			(e.g. "build_all", "build_3.1" or "build_3.0")
+	-->
+	<!-- TODO this macro is being used for more than one porpose
+		It needs to be split into two macros build_product and 
+		build_feature see fogbugz https://developer.instantiations.com/fogbugz/default.php?4817
+	-->
+	<macrodef name="build_product">
+		<attribute name="buildTarget" />
+		<attribute name="buildFile" default="build-feature.xml" />
+		<sequential>
+			<property name="build.target" value="@{buildTarget}" />
+			<ant antfile="@{buildFile}" />
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Assemble the product in its final form(s)
+		Content is pulled from
+			@{commonFileDir}
+			@{targetFileDir}
+		
+		=== Required Parameters:
+		
+		eclipseTarget - the version of Eclipse this bundle targets
+			(e.g. "3.1" or "3.0")
+		
+		=== Optional Parameters:
+		
+		buildout - the directory into which files are generated
+			(defaults to ${build.out})
+		commonFileDir - a directory from which files are pulled
+			(defaults to ${build.temp}/common/out)
+		targetFileDir - a directory from which files are pulled
+			(defaults to ${build.temp}/@{eclipseTarget}/out)
+		prefix - the prefix or lead up directory structure for files in the zip file
+			(defaults to Instantiations/${product.name}_v${product.version}/E-@{eclipseTarget}/eclipse)
+	-->
+	<macrodef name="zip_product">
+		<attribute name="eclipseTarget" />
+		<attribute name="buildout" default="${build.out}" />
+		<attribute name="commonFileDir" default="${build.temp}/common/out" />
+		<attribute name="targetFileDir"
+		           default="${build.temp}/@{eclipseTarget}/out" />
+		<attribute name="targetFileName" 
+					default="${product.name}_v${product.version}_for_Eclipse@{eclipseTarget}.zip"/>
+		<attribute name="prefix"
+		           default="Instantiations/${product.name}_v${product.version}/E-@{eclipseTarget}/eclipse" />
+		<sequential>
+			<mkdir dir="@{buildout}" />
+			<zip destfile="@{buildout}/@{targetFileName}">
+				<zipfileset dir="@{commonFileDir}" prefix="@{prefix}" />
+				<zipfileset dir="@{targetFileDir}" prefix="@{prefix}" />
+			</zip>
+			<echo append="true" file="@{buildout}/files.properties">zip-@{eclipseTarget} = @{targetFileName}
+</echo>
+		</sequential>
+	</macrodef>
+
+	<!-- ================================================= 
+		Macro for loading a *.product xml files
+		into the current project as properties.
+			
+		=== required Parameters:
+		
+		file - the *.product  file to be read
+		
+		=== Properties defined:
+		
+		Product-Label	   	- the product's human readable name
+		Product-Id      	- the product's unique id
+		Product-Application	- the product's application
+	-->
+	<macrodef name="read_product">
+		<attribute name="file" />
+		<sequential>
+			<checkfile file="@{file}" />
+	
+			<!-- Load properties from the rewritten manifest -->
+			<xmlproperty file="@{file}" />
+	
+			<!-- Rename some properties for clarity -->
+			<property name="Product-Label" value="${product(name)}" />
+			<property name="Product-Id" value="${product(id)}" />
+			<property name="Product-Application" value="${product(application)}" />
+	
+		</sequential>
+	</macrodef>
+	<!-- ================================================= 
+		Macro for creating the rcp directory structure.
+			
+		=== optional Parameters:
+		
+		root - the root directory of the RCP
+				(default eclipse)
+		
+		=== Properties defined:
+		
+		Product-Root	   	- the product's root directory
+		Product-Plugins    	- the product's plugins directory
+		Product-Features	- the product's features directory
+		Product-Configuration - the product's configuration directory
+	-->
+	<macrodef name="create_rcp_directory">
+		<attribute name="root" default="eclipse"/>
+		<attribute name="outputDir" default="${build.out}"/>
+		<sequential>
+			<echoproperties destfile="${build.root}/logs/properties.log"/>
+			<!-- Set properties -->
+			<property name="Product-Root" value="@{outputDir}/@{root}" />
+			<property name="Product-Plugins" value="${Product-Root}/plugins" />
+			<property name="Product-Features" value="${Product-Root}/features" />
+			<property name="Product-Configuration" value="${Product-Root}/configuration" />
+			
+			<!-- clean out the directory -->
+			<delete dir="${Product-Root}" failonerror="false" />
+			
+			<!-- create the directory tree -->
+			<mkdir dir="${Product-Root}" />
+			<mkdir dir="${Product-Plugins}"/>
+			<mkdir dir="${Product-Features}"/>
+			<mkdir dir="${Product-Configuration}"/>
+			
+			<copy todir="${Product-Root}">
+				<fileset dir="${eclipse.home}">
+					<include name="${rcp.eclipse.executable}"/>
+					<include name="startup.jar"/>
+				</fileset>
+			</copy>
+			
+		</sequential>
+	</macrodef>
+</project>

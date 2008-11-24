@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project default="build_all">
+	<!-- $Id: buildBundle.template,v 1.4 2006/09/05 13:56:53 mark_russell Exp $ -->
+	<import file="../com.weltevree.ego/build-macros.xml" />
+
+	<!-- ================================================= 
+		Build elements common for all versions of Eclipse 
+		and place them into ${build.temp}/common/${Project-Name}/out
+	-->
+	<target name="build_common">
+		<init_properties />
+		<read_manifest/>
+		<read_build />
+		<eclipsetools.generateBuildJars />
+
+		<dir_bundle eclipseTarget="common" type="plugins">
+			<fileset dir="." includes="${Project-CommonFiles}" />
+		</dir_bundle>
+	</target>
+
+	<!-- ================================================= 
+		Build elements for Eclipse 3.0
+		and place them into ${build.temp}/3.0/${Project-Name}/out
+	-->
+	<target name="build_3.0" depends="build_common">
+		<ant antfile="build-jars.xml">
+			<property name="eclipseTarget" value="3.0" />
+		</ant>
+		<dir_bundle eclipseTarget="3.0" type="plugins" />
+	</target>
+
+	<!-- ================================================= 
+		Build elements for Eclipse 3.1
+		and place them into ${build.temp}/3.1/${Project-Name}/out
+	-->
+	<target name="build_3.1" depends="build_common">
+		<ant antfile="build-jars.xml">
+			<property name="eclipseTarget" value="3.1" />
+		</ant>
+		<dir_bundle eclipseTarget="3.1" type="plugins" />
+	</target>
+
+	<!-- ================================================= 
+		Build elements for all versions of Eclipse
+	-->
+	<target name="build_all" depends="build_3.1">
+	</target>
+
+</project>

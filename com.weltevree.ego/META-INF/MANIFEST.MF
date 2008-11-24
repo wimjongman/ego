@@ -1,0 +1,11 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Ego Core
+Bundle-SymbolicName: com.weltevree.ego.core;singleton:=true
+Bundle-Version: 1.0.0
+Bundle-Vendor: Weltevree
+Eclipse-LazyStart: false
+Export-Package: 
+ com.weltevree.ego.model,
+ com.weltevree.ego.server,
+ com.weltevree.ego.util

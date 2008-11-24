@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project default="product_all">
+<!-- $Id: buildProduct.template,v 1.7 2006/09/05 13:56:53 mark_russell Exp $ -->
+	<import file="../com.weltevree.ego/build-macros.xml" />
+	<property name="eclipseTarget" value="3.1"/>
+	<property name="recorder.log.level" value="info"/>
+	<!-- ================================================= -->
+	<target name="set_recorder" if="recorder.file"
+		depends="read_build_properties">
+		<mkdir dir="${build.root}/log"/>
+		<echo message="recorder file is ${build.root}/log/${recorder.file}" />
+		<record name="${build.root}/log/${recorder.file}" loglevel="${recorder.level}"/>
+	</target>
+
+	<!-- ================================================= -->
+	<target name="read_build_properties">
+		<read_product_properties />
+	</target>
+
+	<!-- ================================================= -->
+	<target name="setup_workspace"
+	        if="setup.workspace"
+	        depends="read_build_properties">
+		<init_cc_workspace />
+	</target>
+
+	<!-- ================================================= -->
+	<target name="product_init"
+	        depends="read_build_properties, setup_workspace, set_recorder">
+		<checkEclipseRunning />
+		<init_product_properties />
+	</target>
+
+	<!-- ================================================= -->
+	<target name="xproduct_2.0" depends="product_init">
+		<build_product buildTarget="build_2.0" />
+		<zip_product eclipseTarget="2.0" />
+	</target>
+
+	<!-- ================================================= -->
+	<target name="xproduct_2.1" depends="product_init">
+		<build_product buildTarget="build_2.1" />
+		<zip_product eclipseTarget="2.1" />
+	</target>
+
+	<!-- ================================================= -->
+	<target name="xproduct_3.0" depends="product_init">
+		<build_product buildTarget="build_3.0" />
+		<fail/>
+		<zip_product eclipseTarget="3.0" />
+	</target>
+
+	<!-- ================================================= -->
+	<target name="product_3.1" depends="product_init">
+		<build_product buildTarget="build_3.1" />
+		<zip_product eclipseTarget="3.1" />
+	</target>
+	
+	<target name="get_eclipse">
+		<property name="eclipse.executable.default.windows" location="${eclipse.home}/eclipse.exe"/>
+		<property name="eclipse.executable.default.linux" location="${eclipse.home}/eclipse"/>
+
+		<available file="${eclipse.executable.default.windows}" property="rcp.eclipse.executable" 
+					value="${eclipse.executable.default.windows}"/>
+		<available file="${eclipse.executable.default.linux}" property="rcp.eclipse.executable" 
+					value="${eclipse.executable.default.linux}"/>
+		<fail unless="rcp.eclipse.executable">
+*********************************************
+* could not find eclipse executable tried 
+* ${eclipse.home}/eclipse.exe
+* and
+* ${eclipse.home}/eclipse
+*********************************************
+		</fail>
+		<echo>The eclipse executable is ${rcp.eclipse.executable}</echo>
+	</target>
+	
+	<!-- ================================================= -->
+	<target name="product_all" depends="product_init, set_recorder, get_eclipse">
+		<init_properties />
+		<read_product file="ego.product"/>
+		<create_rcp_directory/>
+		
+		<condition property="Product-Launcher" value="${product.launcher(name)}">
+			<isset property="product.launcher(name)" />
+		</condition>
+		<basename file="${rcp.eclipse.executable}" property="Product-Launcher"/>
+		<property name="rcp.product.launcher.location" location="${Product-Root}/${Product-Launcher}"/>
+		<copy file="${rcp.eclipse.executable}" 
+				tofile="${rcp.product.launcher.location}"/>
+		<chmod perm="a+x" file="${rcp.product.launcher.location}"/>
+		
+		<eclipsetools.generateBuildConfiguration />
+
+		<property name="Product-Eclipse-Target" value="3.1"/>
+		<build_product buildTarget="build_all" buildFile="build-component.xml"/>
+		<echoproperties destfile="${build.root}/logs/properties.log"/>
+		<echo>To execute this RCP enter: ${rcp.product.launcher.location}</echo>
+	</target>
+
+</project>
