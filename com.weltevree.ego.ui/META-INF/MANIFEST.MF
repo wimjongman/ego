@@ -1,0 +1,14 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: EGo UI
+Bundle-SymbolicName: com.weltevree.ego.ui; singleton:=true
+Bundle-Version: 1.0.0
+Bundle-Localization: plugin
+Bundle-Activator: com.weltevree.ego.ui.Activator
+Bundle-Vendor: Weltevree
+Require-Bundle: org.eclipse.ui,
+ org.eclipse.core.runtime,
+ org.eclipse.gef,
+ org.eclipse.core.resources,
+ com.weltevree.ego.core
+Eclipse-LazyStart: true

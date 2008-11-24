@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.0"?>
+<plugin>
+
+     <extension
+           id="com.weltevree.ego.ui.application"
+           name="%EGO"
+           point="org.eclipse.core.runtime.applications">
+        <application>
+            <run
+                class="com.weltevree.ego.ui.Application">
+            </run>
+        </application>
+    </extension>
+ 
+    <extension
+        point="org.eclipse.ui.perspectives">
+        <perspective
+              class="com.weltevree.ego.ui.Perspective"
+              icon="icons/goblack16.gif"
+              id="com.weltevree.ego.ui.perspective"
+              name="%EGO">
+        </perspective>
+    </extension>
+   
+    
+
+   <extension
+         point="org.eclipse.ui.views">
+      <category
+            name="%EGO"
+            id="com.weltevree.ego.EclipseGo">
+      </category>
+      <view
+            name="%NAVIGATOR"
+            icon="icons/Route.gif"
+            category="com.weltevree.ego.EclipseGo"
+            class="com.weltevree.ego.views.Navigator"
+            id="com.weltevree.ego.views.Navigator">
+      </view>
+      <view
+            icon="icons/Switch.gif"
+            class="com.weltevree.ego.views.Log"
+            category="com.weltevree.ego.EclipseGo"
+            name="Go Log"
+            id="com.weltevree.ego.views.Log"/>
+      <view
+            category="com.weltevree.ego.EclipseGo"
+            class="com.weltevree.ego.views.GamesView"
+            icon="icons/connect_co.gif"
+            id="com.weltevree.ego.views.GamesView"
+            name="Go Games"/>
+      <view
+            category="com.weltevree.ego.EclipseGo"
+            class="com.weltevree.ego.views.UsersView"
+            icon="icons/People.GIF"
+            id="com.weltevree.ego.views.UsersView"
+            name="Go Users"/>
+   </extension>
+   <extension
+         point="org.eclipse.ui.preferencePages">
+      <page
+            class="com.weltevree.ego.preferences.PreferencePage"
+            name="Go Preferences"
+            id="com.weltevree.ego.preferences.GoPreferencePage"/>
+   </extension>
+   <extension
+         point="org.eclipse.ui.newWizards">
+      <category
+            name="Ego Wizards"
+            id="com.weltevree.ego.ui.newWizards"/>
+      <wizard
+            class="com.weltevree.ego.wizards.NewServerWizard"
+            icon="icons/sample.gif"
+            category="com.weltevree.ego"
+            name="New Connection"
+            id="com.weltevree.ego.wizards.NewServerWizard"/>
+   </extension>
+   <extension
+         point="org.eclipse.ui.popupMenus">
+      <objectContribution
+            adaptable="false"
+            id="com.weltevree.ego.model.GoTreeObject"
+            objectClass="com.weltevree.ego.model.TreeObject">
+         
+         <menu
+               id="com.weltevree.ego.menu1"
+               label="TreeParentSubmenu"
+               path="additions">
+            <separator name="group1"/>
+         </menu>
+         <action
+               class="com.weltevree.ego.popup.actions.NewAction"
+               enablesFor="multiple"
+               id="com.weltevree.ego.newAction"
+               label="New Action"
+               menubarPath="com.weltevree.ego.menu1/group1"/>
+      </objectContribution>
+   </extension>
+   <extension
+         id="com.weltevree.ego.GoPerspectiveExtension"
+         name="Go Perspective Extension"
+         point="org.eclipse.ui.perspectiveExtensions">
+      <perspectiveExtension targetID="com.weltevree.ego.ui.perspective">
+         <view
+               id="com.weltevree.ego.views.UsersView"
+               relationship="stack"
+               relative="com.weltevree.ego.views.GamesView"/>
+      </perspectiveExtension>
+   </extension>
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            class="com.weltevree.ego.editors.BoardEditor"
+            default="false"
+            icon="icons/goblack16.gif"
+            id="com.weltevree.ego.editors.BoardEditor"
+            name="%GAME"/>
+   </extension>
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            locationURI="menu:org.eclipse.ui.main.menu?after=additions">
+         <menu
+               id="com.weltevree.ego.ui.menus.file"
+               label="%FILEMENU"
+               mnemonic="%FILEMENUMNEMONIC">
+            <command
+                  commandId="org.eclipse.ui.file.exit"
+                  id="com.weltevree.ego.ui.menus.file.exit"
+                  label="%EXIT"
+                  mnemonic="%EXITMNEMONIC">
+               <visibleWhen
+                     checkEnabled="true">
+               </visibleWhen>
+            </command>
+         </menu>
+         <separator
+               name="additions"
+               visible="false">
+         </separator>
+      </menuContribution>
+   </extension>
+</plugin>
